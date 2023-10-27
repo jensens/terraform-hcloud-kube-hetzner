@@ -28,6 +28,7 @@ module "control_planes" {
   cloudinit_runcmd_common      = local.cloudinit_runcmd_common
   swap_size                    = each.value.swap_size
   zram_size                    = each.value.zram_size
+  ipv4_enabled                 = !var.ipv6_only_control_planes
 
   # We leave some room so 100 eventual Hetzner LBs that can be created perfectly safely
   # It leaves the subnet with 254 x 254 - 100 = 64416 IPs to use, so probably enough.
@@ -126,7 +127,7 @@ resource "null_resource" "control_plane_config" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = module.control_planes[each.key].ipv4_address
+    host           = var.ipv6_prefer ? module.control_planes[each.key].ipv6_address : module.control_planes[each.key].ipv4_address
     port           = var.ssh_port
   }
 
@@ -152,7 +153,7 @@ resource "null_resource" "control_planes" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = module.control_planes[each.key].ipv4_address
+    host           = var.ipv6_prefer ? module.control_planes[each.key].ipv6_address : module.control_planes[each.key].ipv4_address
     port           = var.ssh_port
   }
 

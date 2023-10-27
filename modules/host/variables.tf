@@ -138,3 +138,8 @@ variable "zram_size" {
     error_message = "Invalid zram size. Examples: 512M, 1G"
   }
 }
+
+variable "ipv4_enabled" {
+  default = true
+  type    = bool
+}

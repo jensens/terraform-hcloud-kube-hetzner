@@ -17,7 +17,7 @@ resource "null_resource" "first_control_plane" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = module.control_planes[keys(module.control_planes)[0]].ipv4_address
+    host           = var.ipv6_prefer ? module.control_planes[keys(module.control_planes)[0]].ipv6_address : module.control_planes[keys(module.control_planes)[0]].ipv4_address
     port           = var.ssh_port
   }
 
@@ -44,9 +44,9 @@ resource "null_resource" "first_control_plane" {
         },
         lookup(local.cni_k3s_settings, var.cni_plugin, {}),
         var.use_control_plane_lb ? {
-          tls-san = concat([hcloud_load_balancer.control_plane.*.ipv4[0], hcloud_load_balancer_network.control_plane.*.ip[0]], var.additional_tls_sans)
+          tls-san = concat([var.ipv6_prefer ? hcloud_load_balancer.control_plane.*.ipv6[0] : hcloud_load_balancer.control_plane.*.ipv4[0], hcloud_load_balancer_network.control_plane.*.ip[0]], var.additional_tls_sans)
           } : {
-          tls-san = concat([module.control_planes[keys(module.control_planes)[0]].ipv4_address], var.additional_tls_sans)
+          tls-san = concat([var.ipv6_prefer ? module.control_planes[keys(module.control_planes)[0]].ipv6_address : module.control_planes[keys(module.control_planes)[0]].ipv4_address], var.additional_tls_sans)
         },
         local.etcd_s3_snapshots,
         var.control_planes_custom_config
@@ -133,7 +133,7 @@ resource "null_resource" "kustomization" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = module.control_planes[keys(module.control_planes)[0]].ipv4_address
+    host           = var.ipv6_prefer ? module.control_planes[keys(module.control_planes)[0]].ipv6_address : module.control_planes[keys(module.control_planes)[0]].ipv4_address
     port           = var.ssh_port
   }
 

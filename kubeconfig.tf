@@ -1,6 +1,6 @@
 data "remote_file" "kubeconfig" {
   conn {
-    host        = module.control_planes[keys(module.control_planes)[0]].ipv4_address
+    host        = var.ipv6_prefer ? "[${module.control_planes[keys(module.control_planes)[0]].ipv6_address}]" : module.control_planes[keys(module.control_planes)[0]].ipv4_address
     port        = var.ssh_port
     user        = "root"
     private_key = var.ssh_private_key
@@ -12,9 +12,14 @@ data "remote_file" "kubeconfig" {
 }
 
 locals {
-  kubeconfig_server_address = var.use_control_plane_lb ? hcloud_load_balancer.control_plane.*.ipv4[0] : (
-    can(module.control_planes[keys(module.control_planes)[0]].ipv4_address) ? module.control_planes[keys(module.control_planes)[0]].ipv4_address : "unknown"
+
+  kubeconfig_ip_address = "[${var.ipv6_prefer ? module.control_planes[keys(module.control_planes)[0]].ipv6_address : module.control_planes[keys(module.control_planes)[0]].ipv4_address}]"
+
+  kubeconfig_server_address = var.use_control_plane_lb ? (
+    var.ipv6_prefer ? "[${hcloud_load_balancer.control_plane.*.ipv6[0]}]" : hcloud_load_balancer.control_plane.*.ipv4[0]) : (
+    can(local.kubeconfig_ip_address) ? local.kubeconfig_ip_address : "unknown"
   )
+
   kubeconfig_external = replace(replace(data.remote_file.kubeconfig.content, "127.0.0.1", local.kubeconfig_server_address), "default", var.cluster_name)
   kubeconfig_parsed   = yamldecode(local.kubeconfig_external)
   kubeconfig_data = {

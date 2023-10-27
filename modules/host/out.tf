@@ -1,5 +1,5 @@
 output "ipv4_address" {
-  value = hcloud_server.server.ipv4_address
+  value = var.ipv4_enabled ? hcloud_server.server.ipv4_address : "disabled"
 }
 
 output "ipv6_address" {

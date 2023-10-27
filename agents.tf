@@ -27,6 +27,7 @@ module "agents" {
   cloudinit_write_files_common = local.cloudinit_write_files_common
   cloudinit_runcmd_common      = local.cloudinit_runcmd_common
   swap_size                    = each.value.swap_size
+  ipv4_enabled                 = !var.ipv6_only_agents
 
   private_ipv4 = cidrhost(hcloud_network_subnet.agent[[for i, v in var.agent_nodepools : i if v.name == each.value.nodepool_name][0]].ip_range, each.value.index + 101)
 
@@ -68,7 +69,7 @@ resource "null_resource" "agent_config" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = module.agents[each.key].ipv4_address
+    host           = var.ipv6_prefer ? module.agents[each.key].ipv6_address : module.agents[each.key].ipv4_address
     port           = var.ssh_port
   }
 
@@ -94,7 +95,7 @@ resource "null_resource" "agents" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = module.agents[each.key].ipv4_address
+    host           = var.ipv6_prefer ? module.agents[each.key].ipv6_address : module.agents[each.key].ipv4_address
     port           = var.ssh_port
   }
 
@@ -162,7 +163,7 @@ resource "null_resource" "configure_longhorn_volume" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = module.agents[each.key].ipv4_address
+    host           = var.ipv6_prefer ? module.agents[each.key].ipv6_address : module.agents[each.key].ipv4_address
     port           = var.ssh_port
   }
 
@@ -179,10 +180,29 @@ resource "hcloud_floating_ip" "agents" {
   home_location = each.value.location
 }
 
+resource "hcloud_floating_ip" "agents_ipv6" {
+  for_each = { for k, v in local.agent_nodes : k => v if coalesce(lookup(v, "floating_ip"), false) }
+
+  type          = "ipv6"
+  labels        = local.labels
+  home_location = each.value.location
+}
+
 resource "hcloud_floating_ip_assignment" "agents" {
   for_each = { for k, v in local.agent_nodes : k => v if coalesce(lookup(v, "floating_ip"), false) }
 
   floating_ip_id = hcloud_floating_ip.agents[each.key].id
+  server_id      = module.agents[each.key].id
+
+  depends_on = [
+    null_resource.agents
+  ]
+}
+
+resource "hcloud_floating_ip_assignment" "agents_ipv6" {
+  for_each = { for k, v in local.agent_nodes : k => v if coalesce(lookup(v, "floating_ip"), false) }
+
+  floating_ip_id = hcloud_floating_ip.agents_ipv6[each.key].id
   server_id      = module.agents[each.key].id
 
   depends_on = [
@@ -212,6 +232,8 @@ resource "null_resource" "configure_floating_ip" {
         ipv4.method manual \
         ipv4.addresses ${hcloud_floating_ip.agents[each.key].ip_address}/32,${module.agents[each.key].ipv4_address}/32 gw4 172.31.1.1 \
         ipv4.route-metric 100 \
+        ipv6.method manual \
+        ipv6.addresses ${hcloud_floating_ip.agents_ipv6[each.key].ip_address}/64,${module.agents[each.key].ipv6_address}/64 gw6 fe80::1 \
       && nmcli connection up "$NM_CONNECTION"
       EOT
     ]
@@ -221,7 +243,7 @@ resource "null_resource" "configure_floating_ip" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = module.agents[each.key].ipv4_address
+    host           = var.ipv6_prefer ? module.agents[each.key].ipv6_address : module.agents[each.key].ipv4_address
     port           = var.ssh_port
   }
 

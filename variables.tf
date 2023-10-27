@@ -855,3 +855,23 @@ variable "ingress_target_namespace" {
   default     = ""
   description = "The namespace to deploy the ingress controller to. Defaults to ingress name."
 }
+
+variable "ipv6_prefer" {
+  default = true
+  type    = bool
+}
+
+variable "ipv6_only_control_planes" {
+  default = true
+  type    = bool
+}
+
+variable "ipv6_only_agents" {
+  default = true
+  type    = bool
+}
+
+variable "ipv6_only_egress" {
+  default = true
+  type    = bool
+}

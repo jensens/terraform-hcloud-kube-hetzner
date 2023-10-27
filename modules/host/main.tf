@@ -30,6 +30,11 @@ resource "hcloud_server" "server" {
   backups            = var.backups
   user_data          = data.cloudinit_config.config.rendered
 
+  public_net {
+    ipv4_enabled = var.ipv4_enabled
+    ipv6_enabled = true
+  }
+
   labels = var.labels
 
   # Prevent destroying the whole cluster if the user changes
@@ -47,7 +52,7 @@ resource "hcloud_server" "server" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = self.ipv4_address
+    host           = var.ipv4_enabled ? self.ipv4_address : self.ipv6_address
     port           = var.ssh_port
   }
 
@@ -62,7 +67,7 @@ resource "hcloud_server" "server" {
   # Wait for MicroOS to reboot and be ready.
   provisioner "local-exec" {
     command = <<-EOT
-      until ssh ${local.ssh_args} -i /tmp/${random_string.identity_file.id} -o ConnectTimeout=2 -p ${var.ssh_port} root@${self.ipv4_address} true 2> /dev/null
+      until ssh ${local.ssh_args} -i /tmp/${random_string.identity_file.id} -o ConnectTimeout=2 -p ${var.ssh_port} root@${var.ipv4_enabled ? self.ipv4_address : self.ipv6_address} true 2> /dev/null
       do
         echo "Waiting for MicroOS to become available..."
         sleep 3
@@ -102,7 +107,7 @@ resource "null_resource" "registries" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = hcloud_server.server.ipv4_address
+    host           = var.ipv4_enabled ? hcloud_server.server.ipv4_address : hcloud_server.server.ipv6_address
     port           = var.ssh_port
   }
 
@@ -122,7 +127,7 @@ resource "hcloud_rdns" "server" {
   count = var.base_domain != "" ? 1 : 0
 
   server_id  = hcloud_server.server.id
-  ip_address = hcloud_server.server.ipv4_address
+  ip_address = var.ipv4_enabled ? hcloud_server.server.ipv4_address : hcloud_server.server.ipv6_address
   dns_ptr    = format("%s.%s", local.name, var.base_domain)
 }
 
@@ -162,7 +167,7 @@ resource "null_resource" "zram" {
     user           = "root"
     private_key    = var.ssh_private_key
     agent_identity = local.ssh_agent_identity
-    host           = hcloud_server.server.ipv4_address
+    host           = var.ipv4_enabled ? hcloud_server.server.ipv4_address : hcloud_server.server.ipv6_address
     port           = var.ssh_port
   }
 
